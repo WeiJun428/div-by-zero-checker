@@ -76,7 +76,18 @@ public class DivByZeroTransfer extends CFTransfer {
    */
   private AnnotationMirror refineLhsOfComparison(
       Comparison operator, AnnotationMirror lhs, AnnotationMirror rhs) {
-    // TODO
+    boolean isZero = equal(rhs, zero());
+
+    switch(operator) {
+      case EQ:
+        return glb(lhs, rhs);
+      case NE:
+      case GT:
+      case LT:
+        if (isZero) {
+          return glb(lhs, nonZero());
+        }
+    }
     return lhs;
   }
 
@@ -97,12 +108,47 @@ public class DivByZeroTransfer extends CFTransfer {
    */
   private AnnotationMirror arithmeticTransfer(
       BinaryOperator operator, AnnotationMirror lhs, AnnotationMirror rhs) {
-    // TODO
+    
+    // Return bottom if any of l or r is bottom
+    if (equal(lhs, bottom()) || equal(rhs, bottom())) {
+      return bottom();
+    }
+
+    boolean anyTop = (equal(lhs, top()) || equal(rhs, top()));
+    boolean l0 = equal(lhs, zero());
+    boolean r0 = equal(rhs, zero());
+
+    switch (operator) {
+      case MOD:
+      case DIVIDE:
+        if (r0) return bottom(); // error
+        if (l0) return zero();
+        return top();
+      case PLUS:
+      case MINUS:
+        if (anyTop) return top();
+        if (l0 && r0) return zero();
+        if (l0) return rhs;
+        if (r0) return lhs;
+        return top();
+      case TIMES:
+        if (l0 || r0) return zero();
+        if (anyTop) return top();
+        return nonZero();
+    }
     return top();
   }
 
   // ========================================================================
   // Useful helpers
+
+  private AnnotationMirror nonZero() {
+    return reflect(NonZero.class);
+  }
+  
+  private AnnotationMirror zero() {
+    return reflect(Zero.class);
+  }
 
   /** Get the top of the lattice */
   private AnnotationMirror top() {
